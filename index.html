@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>오사카 여행</title>
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="오사카 여행">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,500,1,0&icon_names=check,directions,drag_indicator,layers,layers_clear,notifications,settings&display=block">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="map"></div>
+
+<div id="top">
+  <div class="titlerow"><h1>오사카 여행 지도</h1><span class="count" id="count"></span><span class="tools"><button class="gear" id="poiBtn" aria-label="구글 장소 표시"></button><button class="gear" id="openSet" aria-label="설정"><span class="ms">settings</span></button></span></div>
+  <div class="chips" id="days"></div>
+  <div class="chips" id="cats"></div>
+</div>
+
+<div id="fab">
+  <button class="btn light" id="openNav"><span class="ms">directions</span>네비</button>
+  <button class="btn light" id="openList">목록</button>
+  <button class="btn dark" id="openAdd">장소 추가</button>
+</div>
+
+<div class="sheet" id="detail"><div class="grab"></div><button class="x" data-close>✕</button><div class="sbody" id="detailBody"></div></div>
+<div class="sheet" id="list"><div class="grab"></div><button class="x" data-close>✕</button><div class="sbody"><div class="lh" id="listTitle">목록</div><div id="listBody"></div></div></div>
+<div class="sheet" id="set"><div class="grab"></div><button class="x" data-close>✕</button><div class="sbody"><div class="lh">설정</div><div id="setBody"></div></div></div>
+<div class="sheet" id="add"><div class="grab"></div><button class="x" data-close>✕</button>
+  <div class="sbody">
+    <div class="lh">장소 추가</div>
+    <div id="acWrap"></div>
+    <div id="addPreview"></div>
+    <div class="status" id="addStatus"></div>
+  </div>
+</div>
+<div class="side" id="nav"><div class="sidehead"><div class="lh">네비</div><button class="x" data-close>✕</button></div><div class="chips" id="navDays"></div><div class="sbody"><div id="navPush"></div><div id="navNext"></div><div id="navList"></div></div></div>
+<div id="toast"></div>
+<div id="gate" hidden>
+  <h2>오사카 여행 지도</h2>
+  <p>같이 쓰는 지도라서 처음 한 번만 코드를 넣어줘.</p>
+  <input id="gateCode" inputmode="numeric" maxlength="12" placeholder="코드" autocomplete="off">
+  <button class="btn dark" id="gateGo">들어가기</button>
+  <div class="status err" id="gateErr"></div>
+</div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
