@@ -1,5 +1,6 @@
 const CFG = window.CFG;
-(g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({key:CFG.MAPS_KEY,v:"weekly",language:"ko",region:"JP"});
+function bootMaps(key){(g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({key,v:"weekly",language:"ko",region:"JP"});}
+window.gm_authFailure=()=>{ store('mk',''); toast('지도 키가 바뀌었어. 새로고침해줘') };
 
 const CATS = {
   shop:{label:'쇼핑',c:'#E0457B',t:'#FCE8EF',em:'🛍️'},
@@ -39,6 +40,7 @@ function pad(){return {top:$('#top').offsetHeight+48,bottom:80,left:32,right:32}
 
 // ---------- 서버 ----------
 let token = store('token')||'';
+let gateResolve=null; const gateDone=new Promise(r=>gateResolve=r);
 async function run(fn,...args){
   const res = await fetch(CFG.API_URL,{method:'POST',body:JSON.stringify({token,fn,args})});
   const j = await res.json();
@@ -48,7 +50,7 @@ async function run(fn,...args){
 function showGate(err){ $('#gate').hidden=false; $('#gateErr').textContent=err||''; setTimeout(()=>$('#gateCode').focus(),100) }
 $('#gateGo').onclick=async()=>{
   token=$('#gateCode').value.trim().toUpperCase(); $('#gateErr').textContent='확인 중...';
-  try{ places=await run('listPlaces'); store('token',token); $('#gate').hidden=true; refresh(); fitMode() }
+  try{ places=await run('listPlaces'); store('token',token); $('#gate').hidden=true; gateResolve(); refresh(); fitMode() }
   catch(e){ $('#gateErr').textContent='코드가 맞지 않아' }
 };
 
@@ -537,7 +539,13 @@ function handleGo(){
 async function init(){
   renderTop();
   initPush();
-  if(!token) showGate();
+  if(!token){ showGate(); await gateDone }
+  let key=store('mk')||'';
+  while(!key){
+    try{ key=await run('getMapsKey'); store('mk',key) }
+    catch(e){ if(String(e.message)==='auth'){ await gateDone } else { toast('서버에 연결하지 못했어'); return } }
+  }
+  bootMaps(key);
   const [{Map,OverlayView},pl]=await Promise.all([google.maps.importLibrary('maps'),google.maps.importLibrary('places')]);
   Place=pl.Place; PlaceAutocompleteElement=pl.PlaceAutocompleteElement;
   map=new Map($('#map'),{center:{lat:34.680,lng:135.495},zoom:13,disableDefaultUI:true,gestureHandling:'greedy',clickableIcons:false,styles:poiOn?[]:POI_OFF});
