@@ -49,6 +49,19 @@ button,input{font:inherit;letter-spacing:inherit;color:inherit}
 .nolbl .mk .lbl{display:none}
 .mk.hide .lbl{visibility:hidden}
 .mk.nolabel .lbl{display:none}
+.me{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:2000}
+.me::before{content:'';position:absolute;left:-10px;top:-10px;width:20px;height:20px;border-radius:50%;background:#2F6FE0;border:3px solid #fff;box-sizing:border-box;box-shadow:0 0 0 8px rgba(47,111,224,.18),0 1px 4px rgba(0,0,0,.3)}
+#route{max-height:46%}
+.rhead .lh{margin:0 40px 2px 0}
+.rsum{font-size:14px;font-weight:700;color:#2F6FE0;line-height:20px}
+.rlive{font-size:13px;color:var(--sub);line-height:20px;min-height:20px}
+#route .actions{margin-top:12px}
+.rsteps{margin-top:8px}
+.rstep{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #F1F2F4}
+.rstep .rn{flex:none;width:22px;height:22px;border-radius:11px;background:#E7EEFC;color:#2F6FE0;font-size:12px;font-weight:800;line-height:22px;text-align:center}
+.rstep .rt{flex:1;min-width:0}
+.rstep .t{font-size:14px;font-weight:600;line-height:20px}
+.rstep .d{font-size:12px;color:var(--mute);line-height:16px;margin-top:2px}
 
 #fab{position:absolute;right:16px;bottom:calc(24px + env(safe-area-inset-bottom));z-index:10;display:flex;gap:8px}
 .btn{height:44px;padding:0 16px;border-radius:22px;border:0;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;text-decoration:none}

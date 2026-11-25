@@ -247,6 +247,7 @@ function declutter(){
 function closeSheets(except){
   document.querySelectorAll('.sheet,.side').forEach(s=>{ if(s.id!==except) s.classList.remove('open') });
   if(except!=='detail' && selId){ selId=null; renderMarkers() }
+  if(except!=='route' && route){ endRoute() }
 }
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeSheets()));
 
@@ -277,7 +278,7 @@ async function openDetail(id,skipPan,keepScroll){
       <div class="grp">일정</div>
       <div class="dayrow">${DAYS.map(x=>`<button class="chip ${p.day===x.n?'on':''}" data-sd="${x.n}">${x.n}일차</button>`).join('')}</div>
       <div class="actions">
-        <a class="btn dark" ${goAttrs(p)}>경로</a>
+        <button class="btn dark" data-route="${esc(p.id)}">${ms('directions')}길찾기</button>
         <a class="btn line" href="${esc(gmUrl(p,g))}" target="_blank" rel="noopener">구글지도에서 보기</a>
       </div>
       <div class="subacts"><button class="tbtn" id="del">삭제</button></div>`;
@@ -382,7 +383,7 @@ function renderNav(){
   $('#navPush').innerHTML = pushCard();
   $('#navDays').innerHTML = DAYS.map(x=>`<button class="chip ${navDay===x.n?'on':''}" data-nd="${x.n}">${x.n}일차<span class="sd">${x.d}</span></button>`).join('');
   $('#navNext').innerHTML = !items.length ? `<div class="status">장소를 누르고 일정에서 ${navDay}일차를 골라줘</div>`
-    : next ? `<div class="nextcard"><div class="nl">다음 장소${next.time?` · ${esc(next.time)} 도착`:''}</div><div class="nn"><span class="ordno">${items.indexOf(next)+1}</span><span class="nm">${esc(next.name)}</span></div>${goOf(next)?`<div class="ngo">${goOf(next)} 출발 · 이동 ${next.mins}분</div>`:''}<a class="btn dark go" data-go="${esc(next.id)}" ${goAttrs(next)}>${ms('directions')}구글맵 길찾기</a></div>`
+    : next ? `<div class="nextcard"><div class="nl">다음 장소${next.time?` · ${esc(next.time)} 도착`:''}</div><div class="nn"><span class="ordno">${items.indexOf(next)+1}</span><span class="nm">${esc(next.name)}</span></div>${goOf(next)?`<div class="ngo">${goOf(next)} 출발 · 이동 ${next.mins}분</div>`:''}<a class="btn dark go" data-go="${esc(next.id)}" ${goAttrs(next)}>${ms('directions')}길찾기</a></div>`
     : `<div class="nextcard"><div class="nn">${navDay}일차 일정 끝</div></div>`;
   $('#navList').innerHTML = items.map((p,i)=>`<div class="nrow ${p.done?'done':''}" data-id="${esc(p.id)}">
       <span class="hdl">${ms('drag_indicator')}</span>
@@ -403,7 +404,103 @@ $('#nav').addEventListener('click',e=>{
   if(ck){ const p=byId(ck.dataset.nck); if(p) toggleDone(p); return }
   if(t){ const p=byId(t.closest('.nrow').dataset.id); if(p){ closeSheets(); focusPlace(p) } }
 });
-document.addEventListener('click',e=>{ const go=e.target.closest&&e.target.closest('[data-go]'); if(!go) return; const p=byId(go.dataset.go); if(p) goTo(p) },true);
+// ---------- 앱 안 길찾기 ----------
+let route=null, meLayer=null, meEl=null, mePos=null, watchId=null, routeLines=[], geoEnc=null;
+const WALK_MAX=25;
+function kmBetween(a,b){ const R=6371,r=x=>x*Math.PI/180; const dLa=r(b.lat-a.lat),dLo=r(b.lng-a.lng); const h=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)) }
+function fmtM(m){ return m<1000 ? Math.round(m)+'m' : (m/1000).toFixed(1)+'km' }
+function plain(h){ return (new DOMParser().parseFromString(String(h||''),'text/html').body.textContent||'').replace(/\s+/g,' ').trim() }
+function makeMeLayer(OverlayView){
+  const L=new OverlayView();
+  L.onAdd=()=>{ meEl=document.createElement('div'); meEl.className='me'; L.getPanes().overlayMouseTarget.appendChild(meEl) };
+  L.draw=()=>{ const pr=L.getProjection(); if(!pr||!meEl) return; if(!mePos){ meEl.style.display='none'; return } meEl.style.display='block'; const pt=pr.fromLatLngToDivPixel(new google.maps.LatLng(mePos.lat,mePos.lng)); meEl.style.transform=`translate(${Math.round(pt.x)}px,${Math.round(pt.y)}px)` };
+  L.onRemove=()=>{ if(meEl) meEl.remove() };
+  return L;
+}
+function setMe(c){ mePos={lat:c.latitude,lng:c.longitude,t:Date.now()}; if(meLayer) meLayer.draw(); updateRouteLive() }
+function getPos(){
+  return new Promise(res=>{
+    if(mePos && Date.now()-mePos.t<60000) return res(mePos);
+    if(!navigator.geolocation) return res(null);
+    const to=setTimeout(()=>res(null),9000);
+    navigator.geolocation.getCurrentPosition(p=>{ clearTimeout(to); setMe(p.coords); res(mePos) },()=>{ clearTimeout(to); res(null) },{enableHighAccuracy:true,timeout:8000,maximumAge:30000});
+  });
+}
+function startWatch(){ if(watchId!=null||!navigator.geolocation) return; watchId=navigator.geolocation.watchPosition(p=>setMe(p.coords),()=>{},{enableHighAccuracy:true,maximumAge:5000}) }
+function stopWatch(){ if(watchId!=null){ navigator.geolocation.clearWatch(watchId); watchId=null } }
+function clearRoute(){ routeLines.forEach(l=>l.setMap(null)); routeLines=[] }
+function endRoute(){ clearRoute(); stopWatch(); route=null }
+function routeFrom(p,me){
+  if(me && kmBetween(me,p)<30) return {pt:me,name:'내 위치',preview:false};
+  const items=p.day?dayItems(p.day):[]; const k=items.indexOf(p);
+  const prev=k>0?items[k-1]:places.find(x=>x.cat==='stay');
+  if(prev && prev.id!==p.id) return {pt:{lat:prev.lat,lng:prev.lng},name:prev.name,preview:true};
+  return null;
+}
+async function startRoute(p){
+  if(!map) return;
+  closeSheets('route'); endRoute();
+  route={p,loading:true};
+  $('#route').classList.add('open');
+  $('#routeBody').innerHTML=`<div class="rhead"><div class="lh">${esc(p.name)}</div><div class="rsum">경로 찾는 중...</div></div>`;
+  const me=await getPos();
+  if(!route||route.p!==p) return;
+  const from=routeFrom(p,me);
+  if(!from){ return transitCard(p,null,'출발 위치를 몰라서 구글맵으로 넘길게',false) }
+  const km=kmBetween(from.pt,p);
+  let r=null;
+  if(km<=2.5){ try{ r=await run('routeTo',{lat:from.pt.lat,lng:from.pt.lng},{lat:p.lat,lng:p.lng}) }catch(e){} }
+  if(!route||route.p!==p) return;
+  if(!r||!r.ok||r.mins>WALK_MAX){
+    const why = r&&r.ok ? `걸어서 ${r.mins}분이라 전철이 빨라` : '걸어가기엔 멀어서 전철이 빨라';
+    return transitCard(p,from,why,!from.preview);
+  }
+  route={p,r,from};
+  const path=geoEnc.decodePath(r.poly);
+  routeLines=[
+    new google.maps.Polyline({path,map,strokeColor:'#ffffff',strokeOpacity:1,strokeWeight:11,zIndex:1,clickable:false}),
+    new google.maps.Polyline({path,map,strokeColor:'#2F6FE0',strokeOpacity:1,strokeWeight:6,zIndex:2,clickable:false})
+  ];
+  const b=new google.maps.LatLngBounds(); path.forEach(x=>b.extend(x));
+  map.fitBounds(b,{top:$('#top').offsetHeight+32,bottom:Math.round(map.getDiv().clientHeight*0.48),left:40,right:40});
+  google.maps.event.addListenerOnce(map,'idle',()=>{ if(map.getZoom()>18) map.setZoom(18) });
+  renderRoute();
+  if(!from.preview) startWatch();
+}
+function transitCard(p,from,why,auto){
+  route={p,transit:true};
+  $('#routeBody').innerHTML=`<div class="rhead"><div class="lh">${esc(p.name)}</div><div class="rsum">${esc(why)}</div>${from&&from.preview?`<div class="rlive">${esc(from.name)}에서 출발 기준</div>`:''}</div>
+    <div class="actions"><a class="btn dark" ${goAttrs(p)}>${ms('directions')}구글맵 대중교통으로 열기</a></div>`;
+  if(auto){ setTimeout(()=>{ if(route&&route.p===p&&route.transit){ if(isIOS) location.href=goUrl(p); else window.open(dirUrl(p),'_blank','noopener') } },900) }
+}
+function renderRoute(){
+  if(!route||!route.r) return;
+  const {p,r,from}=route;
+  const steps=r.steps.map((s,i)=>`<div class="rstep"><span class="rn">${i+1}</span><div class="rt"><div class="t">${esc(plain(s.t))}</div><div class="d">${esc(s.d)}</div></div></div>`).join('');
+  $('#routeBody').innerHTML=`<div class="rhead"><div class="lh">${esc(p.name)}</div>
+      <div class="rsum">도보 ${r.mins}분 · ${fmtM(r.meters)}</div>
+      <div class="rlive" id="rlive">${from.preview?`${esc(from.name)}에서 출발 기준 미리보기`:''}</div></div>
+    <div class="actions"><button class="btn dark" id="rArrive">${ms('check')}도착</button><a class="btn line" ${goAttrs(p)}>구글맵으로</a></div>
+    <div class="rsteps">${steps}</div>`;
+  $('#rArrive').onclick=()=>{
+    if(p.day && !p.done){ p.done=1; save([[p.id,{done:1}]]) }
+    endRoute(); closeSheets(); refresh(); toast(`${p.name} 도착`);
+  };
+  updateRouteLive();
+}
+function updateRouteLive(){
+  if(!route||!route.r||route.from.preview||!mePos) return;
+  const el=$('#rlive'); if(!el) return;
+  const m=kmBetween(mePos,route.p)*1000;
+  el.textContent = m<40 ? '거의 다 왔어' : `직선으로 ${fmtM(m)} 남음`;
+}
+document.addEventListener('click',e=>{
+  const t=e.target.closest&&e.target.closest('[data-go],[data-route]'); if(!t) return;
+  const p=byId(t.dataset.go||t.dataset.route); if(!p) return;
+  e.preventDefault();
+  if(t.dataset.go) goTo(p);
+  startRoute(p);
+},true);
 const tmTimers={};
 $('#nav').addEventListener('focusout',e=>{ if(e.target.closest('[data-tm]')) setTimeout(()=>{ if(!document.activeElement||!document.activeElement.closest('[data-tm]')) renderNav() },300) });
 $('#nav').addEventListener('change',e=>{
@@ -541,7 +638,7 @@ function handleGo(){
   history.replaceState(null,'',location.pathname);
   const p=byId(id); if(!p) return;
   openNav(p.day||undefined);
-  setTimeout(()=>{ location.href=goUrl(p) },400);
+  setTimeout(()=>startRoute(p),400);
 }
 async function init(){
   renderTop();
@@ -557,6 +654,8 @@ async function init(){
   Place=pl.Place; PlaceAutocompleteElement=pl.PlaceAutocompleteElement;
   map=new Map($('#map'),{center:{lat:34.680,lng:135.495},zoom:13,disableDefaultUI:true,gestureHandling:'greedy',clickableIcons:false,styles:poiOn?[]:POI_OFF});
   layer=makeLayer(OverlayView); layer.setMap(map);
+  meLayer=makeMeLayer(OverlayView); meLayer.setMap(map);
+  geoEnc=(await google.maps.importLibrary('geometry')).encoding;
   map.fitBounds(OSAKA,pad());
   map.addListener('idle',schedDeclutter);
   map.addListener('click',()=>closeSheets());
