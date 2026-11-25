@@ -57,6 +57,13 @@ $('#gateGo').onclick=async()=>{
 // ---------- 글자 크기, 구글 장소 ----------
 let lfs = Number(store('lfs'))||14;
 let poiOn = store('poi')!=='0';
+let onlyPlanned = store('op')==='1';
+function renderLbl(){ const b=$('#lblBtn'); b.classList.toggle('off',onlyPlanned); b.innerHTML=ms(onlyPlanned?'label_off':'label') }
+renderLbl();
+$('#lblBtn').onclick=()=>{
+  onlyPlanned=!onlyPlanned; store('op',onlyPlanned?'1':'0'); renderLbl(); renderMarkers();
+  toast(onlyPlanned?'일정에 넣은 곳만 이름 보이기':'모든 장소 이름 보이기');
+};
 function applyFont(){ document.body.style.setProperty('--lfs',lfs+'px') }
 applyFont();
 function renderPoi(){ const b=$('#poiBtn'); b.classList.toggle('off',!poiOn); b.innerHTML=ms(poiOn?'layers':'layers_clear') }
@@ -195,7 +202,7 @@ function makeLayer(OverlayView){
 function markerEl(p){
   const c=CATS[p.cat]||CATS.play;
   const el=document.createElement('div');
-  el.className='mk'+(p.cat==='stay'?' stay':'')+(p.id===selId?' sel':'');
+  el.className='mk'+(p.cat==='stay'?' stay':'')+(p.id===selId?' sel':'')+(onlyPlanned&&!p.day&&p.cat!=='stay'&&p.id!==selId?' nolabel':'');
   el.style.setProperty('--c',c.c); el.style.setProperty('--t',c.t);
   const no = mode && p.day===mode ? `<span class="no">${numOf(p)}</span>` : '';
   el.innerHTML=`<span class="pin"><span class="em">${c.em}</span></span><span class="lbl">${esc(p.name)}${no}</span>`;
@@ -230,7 +237,7 @@ function declutter(){
   const placed=items.map(el=>{ const r=el.querySelector('.pin').getBoundingClientRect(); return {el,left:r.left+6,right:r.right-6,top:r.top+4,bottom:r.bottom-4} });
   items.forEach(el=>{
     el.classList.remove('hide');
-    const lb=el.querySelector('.lbl'); if(!lb) return;
+    const lb=el.querySelector('.lbl'); if(!lb||el.classList.contains('nolabel')) return;
     const r=lb.getBoundingClientRect();
     if(placed.some(q=>q.el!==el&&!(r.right<q.left||r.left>q.right||r.bottom<q.top||r.top>q.bottom))) el.classList.add('hide'); else placed.push(r);
   });

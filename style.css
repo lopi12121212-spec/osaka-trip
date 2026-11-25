@@ -48,6 +48,7 @@ button,input{font:inherit;letter-spacing:inherit;color:inherit}
 .mk.stay .lbl{left:28px;top:-31px}
 .nolbl .mk .lbl{display:none}
 .mk.hide .lbl{visibility:hidden}
+.mk.nolabel .lbl{display:none}
 
 #fab{position:absolute;right:16px;bottom:calc(24px + env(safe-area-inset-bottom));z-index:10;display:flex;gap:8px}
 .btn{height:44px;padding:0 16px;border-radius:22px;border:0;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;text-decoration:none}
